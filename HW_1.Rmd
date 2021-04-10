@@ -37,7 +37,8 @@ ggplot(climate_data, aes(date, climate_data$prcp))+geom_line()+ labs(y="Daily Ra
 
 clim_1950 <- climate_data %>% 
   mutate(year = year(date)) %>% 
-  filter(year >= 1950)
+  filter(year >= 1950,
+         year != 2021) #removed 2021 because do not have a full year of data, was skewing data
 ```
 
 ```{r}
@@ -58,18 +59,65 @@ clim_year_avg <-
   summarize(tmax_mean=mean(tmax), tmin_mean = mean(tmin), precip_mean=mean(prcp))
 
 
-ggplot(data = clim_year_avg, aes(x = year, y = tmax_mean)) + geom_point(color = "blue") +
+a <- ggplot(data = clim_year_avg, aes(x = year, y = tmax_mean)) + geom_point(color = "blue") +
   labs(x = "Year", y = "Yearly Average Temperature (degrees F)", title = "Yearly Min and Max Temperatures") +
   scale_y_continuous(limits=c(min(clim_year_avg$tmin_mean), max(clim_year_avg$tmax_mean)))+
 geom_point(data=clim_year_avg, aes(x=year, y = tmin_mean), col="red")
 
-
-ggplot(data = clim_year_avg, aes(x = year, y = precip_mean)) + geom_point(color = "blue") +
-  labs(x = "Year", y = "Yearly Average Precipitation Temperature (degrees F)")
+#adding a trendline
+a = a+stat_smooth(method = "lm", col = "blue")
+a
+a+stat_smooth(data = clim_year_avg, aes(x = year, y = tmin_mean), col = "red", method = lm)
 ```
 
 
-### want to look at it by monthly averages
+## Finding the slope of the trendlines
+```{r}
+
+# regression line for min temp, year average
+
+res = lm(tmin_mean~year, data=clim_year_avg)
+summary(res)
+confint(res, "year", level = 0.95)
+ggplot(clim_year_avg, aes(x = year, y = tmin_mean)) +stat_summary(fun.y = "mean", geom = "point", col = "red", size = 2) +
+  theme(axis.text = element_text(size = 14, face = "bold"), axis.title = element_text(size = 14, face = "bold")) +
+  geom_smooth(method = "lm")
+
+```
+
+Slope = 0.017, p = 0.00522 so statistically significant
+
+```{r}
+# regression line for Max temp, year average
+
+res1 = lm(tmax_mean~year, data=clim_year_avg)
+summary(res1)
+confint(res1, "year", level = 0.95)
+ggplot(clim_year_avg, aes(x = year, y = tmax_mean)) +stat_summary(fun.y = "mean", geom = "point", col = "red", size = 2) +
+  theme(axis.text = element_text(size = 14, face = "bold"), axis.title = element_text(size = 14, face = "bold")) +
+  geom_smooth(method = "lm")
+```
+
+slope = 0.022 F/year, statistically significant
+
+```{r}
+
+# regression line for mean year precipitation
+
+res2 = lm(precip_mean~year, data=clim_year_avg)
+summary(res2)
+confint(res2, "year", level = 0.95)
+ggplot(clim_year_avg, aes(x = year, y = precip_mean)) +stat_summary(fun.y = "mean", geom = "point", col = "red", size = 2) +
+  theme(axis.text = element_text(size = 14, face = "bold"), axis.title = element_text(size = 14, face = "bold")) +
+  geom_smooth(method = "lm")
+```
+
+slope = -5.65 x 10-5, p value = 0.212, not statistically signficant
+
+
+### More Data Visualizations
+
+#### want to look at it by monthly averages
 ```{r}
 clim_month_avg <- clim_1950 %>% 
   mutate(month = month(date),
@@ -79,7 +127,7 @@ clim_month_avg <- clim_1950 %>%
 
 ggplot(data = clim_month_avg, aes(x = year, y = precip_mean)) + geom_line()+
   facet_wrap(~month)
-  
+
 ```
 
 
@@ -91,11 +139,11 @@ clim_season <- clim_month_avg %>%
             month %in% c(3,4,5) ~ "Spring",
             month %in% c( 6,7,8) ~ "Summer",
             month %in% c(9, 10, 11) ~ "Fall"))
-```
 
-```{r}
 ggplot(data = clim_season , aes(x = year, y = precip_mean)) + geom_line()+
   facet_wrap(~season)
 ```
+
+
 
 
