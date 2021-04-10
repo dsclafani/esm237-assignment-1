@@ -1,0 +1,101 @@
+---
+title: "hw_1"
+author: "Danielle Sclafani"
+date: "4/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(chron)
+library(here)
+library(janitor)
+```
+
+#### Reading in the data
+```{r}
+climate_data <- read_csv(here("data", "bishop_airport.csv")) %>% 
+  clean_names()
+```
+
+#### visualizing the data
+```{r}
+
+ggplot(climate_data, aes(date, climate_data$tmax))+geom_line()+ labs(y="Daily Maximum Temperature (degrees F)", x="Date")
+
+ggplot(climate_data, aes(date, climate_data$tmin))+geom_line()+ labs(y="Daily Minimum Temperature (degrees F)", x="Date")
+
+ggplot(climate_data, aes(date, climate_data$prcp))+geom_line()+ labs(y="Daily Rainfall (in)", x="Date")
+
+```
+
+```{r}
+#missing a big chunk of data between 1898, going to choose data between 1950-2021, because missing large chunk before 1950
+
+clim_1950 <- climate_data %>% 
+  mutate(year = year(date)) %>% 
+  filter(year >= 1950)
+```
+
+```{r}
+ggplot(clim_1950, aes(date, tmax))+geom_line()+ labs(y="Daily Maximum Temperature (degrees F)", x="Date")
+
+ggplot(clim_1950, aes(date, tmin))+geom_line()+ labs(y="Daily Minimum Temperature (degrees F)", x="Date")
+
+ggplot(clim_1950, aes(date, prcp))+geom_line()+ labs(y="Daily Rainfall (in)", x="Date")
+
+```
+
+
+The trend has a lot of seasonality and is very noisy so going to try annual averages
+```{r}
+clim_year_avg <-
+  clim_1950 %>% 
+  group_by(year) %>% 
+  summarize(tmax_mean=mean(tmax), tmin_mean = mean(tmin), precip_mean=mean(prcp))
+
+
+ggplot(data = clim_year_avg, aes(x = year, y = tmax_mean)) + geom_point(color = "blue") +
+  labs(x = "Year", y = "Yearly Average Temperature (degrees F)", title = "Yearly Min and Max Temperatures") +
+  scale_y_continuous(limits=c(min(clim_year_avg$tmin_mean), max(clim_year_avg$tmax_mean)))+
+geom_point(data=clim_year_avg, aes(x=year, y = tmin_mean), col="red")
+
+
+ggplot(data = clim_year_avg, aes(x = year, y = precip_mean)) + geom_point(color = "blue") +
+  labs(x = "Year", y = "Yearly Average Precipitation Temperature (degrees F)")
+```
+
+
+### want to look at it by monthly averages
+```{r}
+clim_month_avg <- clim_1950 %>% 
+  mutate(month = month(date),
+         date = date(date)) %>%
+  group_by(year, month) %>% 
+  summarize(precip_mean = mean(prcp), tmin_mean=mean(tmin), tmax_mean=mean(tmax))
+
+ggplot(data = clim_month_avg, aes(x = year, y = precip_mean)) + geom_line()+
+  facet_wrap(~month)
+  
+```
+
+
+#### looking at it seasonally
+```{r}
+clim_season <- clim_month_avg %>% 
+  mutate(season = case_when(
+            month %in% c(12, 1, 2) ~ "Winter",
+            month %in% c(3,4,5) ~ "Spring",
+            month %in% c( 6,7,8) ~ "Summer",
+            month %in% c(9, 10, 11) ~ "Fall"))
+```
+
+```{r}
+ggplot(data = clim_season , aes(x = year, y = precip_mean)) + geom_line()+
+  facet_wrap(~season)
+```
+
+
