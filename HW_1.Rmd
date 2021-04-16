@@ -39,9 +39,25 @@ clim_1950 <- climate_data %>%
   mutate(year = year(date)) %>% 
   filter(year >= 1950,
          year != 2021) #removed 2021 because do not have a full year of data, was skewing data
+
+# need to fill the rows that are N/As
+fillrow = which(is.na(clim_1950$prcp))
+fillrow
+clim_1950$prcp[fillrow]=0
+
+# find rows with missing data
+# temperature
+fillrow = which(is.na(clim_1950$tmax) | clim_1950$tmax < 40)
+fillrow = fillrow[2:length(fillrow)]
+clim_1950$tmax[fillrow]=(clim_1950$tmax[fillrow+1]+clim_1950$tmax[fillrow-1])/2
+
+fillrow = which(is.na(clim_1950$tmin) | clim_1950$tmin < 40)
+fillrow = fillrow[2:length(fillrow)]
+clim_1950$tmin[fillrow]=(clim_1950$tmin[fillrow+1]+clim_1950$tmin[fillrow-1])/2
 ```
 
 ```{r}
+#replotting ot make sure this works
 ggplot(clim_1950, aes(date, tmax))+geom_line()+ labs(y="Daily Maximum Temperature (degrees F)", x="Date")
 
 ggplot(clim_1950, aes(date, tmin))+geom_line()+ labs(y="Daily Minimum Temperature (degrees F)", x="Date")
@@ -51,23 +67,26 @@ ggplot(clim_1950, aes(date, prcp))+geom_line()+ labs(y="Daily Rainfall (in)", x=
 ```
 
 
-The trend has a lot of seasonality and is very noisy so going to try annual averages
-```{r}
+The trend has a lot of seasonality and is very noisy so going to try annual averages - adding a trend line to the tmin and tmax
+```{r, fig.cap="Figure 1.0 Initial Data Visualization of Annual Average Daily Minimum and Maximum temperatures from 1950-2020"}
 clim_year_avg <-
   clim_1950 %>% 
   group_by(year) %>% 
   summarize(tmax_mean=mean(tmax), tmin_mean = mean(tmin), precip_mean=mean(prcp))
 
 
-a <- ggplot(data = clim_year_avg, aes(x = year, y = tmax_mean)) + geom_point(color = "blue") +
-  labs(x = "Year", y = "Yearly Average Temperature (degrees F)", title = "Yearly Min and Max Temperatures") +
+a <- ggplot(data = clim_year_avg, aes(x = year, y = tmax_mean)) + geom_point(color = "skyblue") +
+  labs(x = "Year", y = "Average Temperature (degrees F)", title = "Average Annual Minimum and Maximum Temperatures (degrees F)") +
   scale_y_continuous(limits=c(min(clim_year_avg$tmin_mean), max(clim_year_avg$tmax_mean)))+
-geom_point(data=clim_year_avg, aes(x=year, y = tmin_mean), col="red")
+geom_point(data=clim_year_avg, aes(x=year, y = tmin_mean), col="cyan4")
 
 #adding a trendline
-a = a+stat_smooth(method = "lm", col = "blue")
+a = a+stat_smooth(method = "lm", col = "skyblue")
 a
-a+stat_smooth(data = clim_year_avg, aes(x = year, y = tmin_mean), col = "red", method = lm)
+a+stat_smooth(data = clim_year_avg, aes(x = year, y = tmin_mean), col = "cyan4", method = lm)+theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(family = "Times New Roman"))
+
+ggsave(here("figs", "yearavg_min_max_temps.png"))
 ```
 
 
@@ -85,7 +104,7 @@ ggplot(clim_year_avg, aes(x = year, y = tmin_mean)) +stat_summary(fun.y = "mean"
 
 ```
 
-Slope = 0.017, p = 0.00522 so statistically significant
+Slope = 0.017, p = 0.0069 so statistically significant
 
 ```{r}
 # regression line for Max temp, year average
@@ -98,7 +117,7 @@ ggplot(clim_year_avg, aes(x = year, y = tmax_mean)) +stat_summary(fun.y = "mean"
   geom_smooth(method = "lm")
 ```
 
-slope = 0.022 F/year, statistically significant
+slope = 0.02178 F/year, statistically significant 0.0126
 
 ```{r}
 
@@ -107,12 +126,146 @@ slope = 0.022 F/year, statistically significant
 res2 = lm(precip_mean~year, data=clim_year_avg)
 summary(res2)
 confint(res2, "year", level = 0.95)
-ggplot(clim_year_avg, aes(x = year, y = precip_mean)) +stat_summary(fun.y = "mean", geom = "point", col = "red", size = 2) +
+ggplot(clim_year_avg, aes(x = year, y = precip_mean)) +stat_summary(fun.y = "mean", geom = "point", col = "navy", size = 2) +
+  labs(x = "Year", y = "Average Precipitation (cm)", title = "Average Annual Precipitation Levels (cm)")+
+  geom_smooth(method = "lm", color = "black") +
+  theme_minimal()+
+  theme(plot.title = element_text(hjust=0.5), text = element_text(family = "Times New Roman"))
+
+ggsave(here("figs", "avg.precip.png"), width = 8, height = 5)
+```
+
+slope = -5.61 x 10-5, p value = 0.2005, not statistically signficant
+
+
+### We can look at trends with shorter periods of time to see if there is a more significant trend in shorter time
+#### going to look at 2000-2020
+
+```{r}
+clim_20 <- clim_1950 %>% 
+  filter(year >= 2000,
+         year != 2021) %>% 
+  group_by(year) %>% 
+  summarize(tmax_mean=mean(tmax), tmin_mean = mean(tmin), precip_mean=mean(prcp))
+
+
+
+ggplot(clim_20, aes(year, tmax_mean))+geom_point()+ labs(y="Mean Annual Daily Maximum Temperature (degrees F)", x="Date")
+
+ggplot(dat = clim_20, aes(x = year, y = tmin_mean)) + geom_point()+ labs( y= "Mean Annual Daily Minimum Temperature")
+
+ggplot(data =clim_20, aes(x=year, y = precip_mean)) + geom_point() + labs(y= "Mean Annual Daily Precipitation")
+```
+
+
+#Finding regression for 1980-2020 (2000-2020)
+##tmin
+```{r}
+# regression line for min temp, year average
+
+res = lm(tmin_mean~year, data=clim_20)
+summary(res)
+confint(res, "year", level = 0.95)
+ggplot(clim_20, aes(x = year, y = tmin_mean)) +stat_summary(fun.y = "mean", geom = "point", col = "red", size = 2) +
   theme(axis.text = element_text(size = 14, face = "bold"), axis.title = element_text(size = 14, face = "bold")) +
   geom_smooth(method = "lm")
 ```
 
-slope = -5.65 x 10-5, p value = 0.212, not statistically signficant
+##max
+```{r}
+
+res1 = lm(tmax_mean~year, data=clim_20)
+summary(res1)
+confint(res1, "year", level = 0.95)
+ggplot(clim_20, aes(x = year, y = tmax_mean)) +stat_summary(fun.y = "mean", geom = "point", col = "red", size = 2) +
+  theme(axis.text = element_text(size = 14, face = "bold"), axis.title = element_text(size = 14, face = "bold")) +
+  geom_smooth(method = "lm")
+```
+
+
+## Precipitation
+```{r}
+res2 = lm(precip_mean~year, data=clim_20)
+summary(res2)
+confint(res2, "year", level = 0.95)
+ggplot(clim_20, aes(x = year, y = precip_mean)) +stat_summary(fun.y = "mean", geom = "point", col = "red", size = 2) +
+  theme(axis.text = element_text(size = 14, face = "bold"), axis.title = element_text(size = 14, face = "bold")) +
+  geom_smooth(method = "lm")
+```
+
+
+Regression line assumes linear relationship, which we do not know, so we need to use Mann-Kendall test
+- Mann- Kendall test is used to determine whether a time series has a monotonic upward or downward trend. it does not require that the data be normally distributed or linear
+H-null = no correlation, no trend (between time & temp / precipitation)
+if S > 0 then later observations in the time series tend to be larger than those that appear earlier in the time series
+if S <- then later observations in the time series tend to be smaller than those that appear earlier in time series
+```{r}
+library(Kendall)
+tmin_MK<- MannKendall(clim_year_avg$tmin_mean)
+summary(tmin_MK)
+
+tmin_table <- broom::tidy(tmin_MK) 
+
+kable(tmin_table, caption = "Table 1.0 Mann-Kendall Results of Yearly Average Minimum Temperature (1950-2020)",
+  col.names = c("T-Statistic", "p-value", "Kendall Score", "Denominator", "Variable Kendall Score"), align = 'c') %>% 
+  kable_styling() %>% 
+  kable_classic_2(full_width = F, html_font = "Times New Roman")
+
+
+
+```
+
+```{r}
+tmax_MK <-MannKendall(clim_year_avg$tmax_mean)
+tmax_table <- broom::tidy(tmax_MK)
+
+kable(tmax_table, caption = "Table 2.0 Mann-Kendall Results of Yearly Average Maximum Temperature (1950-2020)",
+  col.names = c("T-Statistic", "p-value", "Kendall Score", "Denominator", "Variable Kendall Score"), align = 'c') %>% 
+  kable_styling() %>% 
+  kable_classic_2(full_width = F, html_font = "Times New Roman")
+
+```
+
+```{r}
+precip_MK <- MannKendall(clim_year_avg$precip_mean)
+precip_table <-broom::tidy(precip_MK)
+
+kable(precip_table, caption = "Table 3.0 Mann-Kendall Results of Yearly Average Precipitation Levels (1950-2020)",
+  col.names = c("T-Statistic", "p-value", "Kendall Score", "Denominator", "Variable Kendall Score"), align = 'c') %>% 
+  kable_styling() %>% 
+  kable_classic_2(full_width = F, html_font = "Times New Roman")
+```
+
+
+
+```{r}
+#time series graph of yearly daily avg of minimum temp (1950-2020)
+ggplot(data = clim_year_avg, aes(x=year, y=tmin_mean)) + geom_line()+
+  stat_smooth(method = lm)
+       
+#time series graph of yearly daily avg of max temp (1950-2020)
+ggplot(data = clim_year_avg, aes(x=year, y=tmax_mean)) + geom_line()+
+  stat_smooth(method = lm)
+
+#time series graph of yearly daily avg of precip  (1950-2020)
+ggplot(data = clim_year_avg, aes(x=year, y=precip_mean)) + geom_line()+
+  stat_smooth(method = lm)
+```
+
+two-sided t-test
+```{r}
+# splitting the minimum data into two time series - found significant like this
+t.test(subset(clim_year_avg$tmin_mean, clim_year_avg$year %in% 1950:1999), subset(clim_year_avg$tmin_mean, clim_year_avg$year %in% 2000:2020))
+
+# splitting the max data into two time series - significant
+t.test(subset(clim_year_avg$tmax_mean, clim_year_avg$year %in% 1950:1999), subset(clim_year_avg$tmax_mean, clim_year_avg$year %in% 2000:2020))
+
+# splitting the precip data into two time series - NOT significant
+t.test(subset(clim_year_avg$precip_mean, clim_year_avg$year %in% 1950:1999), subset(clim_year_avg$precip_mean, clim_year_avg$year %in% 2000:2020))
+```
+
+
+
 
 
 ### More Data Visualizations
@@ -134,15 +287,141 @@ ggplot(data = clim_month_avg, aes(x = year, y = precip_mean)) + geom_line()+
 #### looking at it seasonally
 ```{r}
 clim_season <- clim_month_avg %>% 
-  mutate(season = case_when(
-            month %in% c(12, 1, 2) ~ "Winter",
+  mutate(season = case_when(month %in% c(12, 1, 2) ~ "Winter",
             month %in% c(3,4,5) ~ "Spring",
-            month %in% c( 6,7,8) ~ "Summer",
-            month %in% c(9, 10, 11) ~ "Fall"))
+            month %in% c(6,7,8) ~ "Summer",
+            month %in% c(9, 10, 11) ~ "Fall")) %>% 
+  filter(year >= 2000,
+         year != 2021)
 
-ggplot(data = clim_season , aes(x = year, y = precip_mean)) + geom_line()+
-  facet_wrap(~season)
+
+ggplot(data = clim_season, aes(x=year, y = precip_mean)) + geom_line()+
+  facet_wrap(~season)+
+  stat_smooth(method = lm)
 ```
+
+```{r}
+ggplot(data = clim_season, aes(x=year, y = tmin_mean)) + geom_line()+
+  facet_wrap(~season)+
+  stat_smooth(method = lm)
+```
+
+```{r}
+ggplot(data = clim_season, aes(x=year, y = tmax_mean)) + geom_line()+
+  facet_wrap(~season)+
+  stat_smooth(method = lm)
+```
+
+
+
+### Looking at Extremes
+from 1950-2020
+```{r}
+clim_1950$freeze = ifelse(clim_1950$tmin <=32,1,0) #if tmin is 32 degrees of less, put a 1. if above 32 degress put a 0
+clim_pk <- clim_1950 %>% 
+  group_by(year) %>% 
+  summarize(ndayfr = sum(freeze))
+
+ggplot(data= clim_pk, aes(x=year, y =ndayfr)) + geom_point()+labs(y="Number of Freezing Days") +
+  stat_smooth(method = lm)
+
+```
+
+```{r}
+#two sided t test of number of days from 1950-1985, and 1986-2020
+tmin_ttest <- t.test(subset(clim_pk$ndayfr, clim_pk$year %in% 1950:1985), subset(clim_pk$ndayfr, clim_pk$year %in% 1986:2020))
+tmin_ttest_table <- broom::tidy(tmin_ttest)
+
+kable(tmin_ttest_table, caption = "Table 3.0 Two Sided T-test of Number of Freezing Days") %>% 
+  kable_styling() %>% 
+  kable_classic_2(full_width = F, html_font = "Times New Roman")
+```
+
+```{r}
+#mann-kendall of min
+freeze_MK <- MannKendall(clim_pk$ndayfr)
+summary(freeze_MK)
+```
+
+
+## looking for the hottest day of the year
+```{r}
+clim_hot <-clim_1950 %>% group_by(year) %>%  summarize(hotday=max(tmax))
+
+ggplot(data = clim_hot, aes(x=year, y = hotday)) + geom_point(color = "navy")+labs(y="Temperature (degrees F)", x = "Year", title = "Hottest Days of the Year (1950-2020)")  +
+  stat_smooth(method = lm, color = "black")+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(family = "Times New Roman"))
+
+ggsave(here("figs", "hotdays.png"), width = 5, height =3)
+```
+
+```{r}
+#hot days ttest
+hot_test <-15 t.test(subset(clim_hot$hotday, clim_hot$year %in% 1950:1985), subset(clim_hot$hotday, clim_hot$year %in% 1986:2020))
+
+```
+
+
+```{r}
+clim_1950$rain = ifelse(clim_1950$prcp == 0,0,1) #if precip is 0inches then say 0, put a 1. if more than 0 say 1
+
+clim_rain <- clim_1950 %>% 
+  group_by(year) %>% 
+  summarize(daysrained = sum(rain))
+
+ggplot(data= clim_rain, aes(x=year, y =daysrained)) + geom_point(color = "navy")+labs(title ="Number of Rainy Days over time", y = "Number of Rainy Days", x = "Year")+
+  stat_smooth(method = lm, color = "black")+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(family = "Times New Roman"))
+
+ggsave(here("figs", "rainydays.png"), width = 5, height = 3)
+```
+
+
+```{r}
+#mann-kendall of rain
+rain_MK <- MannKendall(clim_rain$daysrained)
+summary(rain_MK)
+
+#rain days ttest
+t.test(subset(clim_rain$daysrained, clim_hot$year %in% 1950:1985), subset(clim_rain$daysrained, clim_hot$year %in% 1986:2020))
+
+```
+
+
+
+Making tables of the # of times that freezing days and rained
+```{r}
+library(kableExtra)
+library(gt)
+
+clim_table <- clim_1950 %>% group_by(year) %>% 
+  summarize(Rain = sum(rain), Freezing = sum(freeze)) %>% 
+  mutate_all(~replace(., is.na(.),0)) %>% 
+  mutate(Year = year) %>% 
+  select(Year, Rain, Freezing)
+
+table_a <- clim_table %>% 
+  gt %>%
+  tab_header(
+    title = "Frequency of Climate Extremes",
+    subtitle = "Number of days each year that it rained & the minimum temperature dropped below freezing"
+  ) %>% 
+  tab_options(table.width = pct(40))
+
+
+
+```
+
+
+
+
+
+
+
+
+
 
 
 
