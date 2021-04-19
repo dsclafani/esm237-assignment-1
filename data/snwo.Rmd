@@ -1,0 +1,152 @@
+---
+title: "snow_pack"
+author: "Danielle Sclafani"
+date: "4/18/2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(chron)
+library(here)
+library(janitor)
+```
+
+#### Reading in the data
+```{r}
+snow_data <- read_csv(here("data", "bishop_snow.csv")) %>% 
+  clean_names()
+```
+
+
+
+```{r}
+#missing a big chunk of data between 1898, going to choose data between 1950-2021, because missing large chunk before 1950
+
+snow_1950 <- snow_data %>% 
+  mutate(year = year(date)) %>% 
+  filter(year >= 1950,
+         year != 2021) #removed 2021 because do not have a full year of data, was skewing data
+
+# need to fill the rows that are N/As
+fillrow = which(is.na(snow_1950$snow))
+fillrow
+snow_1950$snow[fillrow]=0
+
+```
+
+
+
+```{r}
+
+ggplot(snow_1950, aes(date, snow_1950$snow))+geom_line()+ labs(y="Snow", x="Date")
+
+```
+
+
+
+
+The trend has a lot of seasonality and is very noisy so going to try annual averages - adding a trend line to the tmin and tmax
+```{r, fig.cap="Figure 1.0 Initial Data Visualization of Annual Average Daily Minimum and Maximum temperatures from 1950-2020"}
+snow_year_avg <-
+  snow_1950 %>% 
+  group_by(year) %>% 
+  summarize(snow_mean=mean(snow))
+
+
+a <- ggplot(data = snow_year_avg, aes(x = year, y = snow_mean)) + geom_point(color = "skyblue") +
+geom_point(data=snow_year_avg, aes(x=year, y = snow_mean), col="cyan4")
+
+#adding a trendline
+a = a+stat_smooth(method = "lm", col = "skyblue")
+a
+a+stat_smooth(data = snow_year_avg, aes(x = year, y = snow_mean), col = "cyan4", method = lm)+theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(family = "Times New Roman"))
+
+```
+
+
+## Finding the slope of the trendlines
+```{r}
+
+# regression line for min temp, year average
+
+res = lm(snow_mean~year, data=snow_year_avg)
+summary(res)
+confint(res, "year", level = 0.95)
+ggplot(clim_year_avg, aes(x = year, y = tmin_mean)) +stat_summary(fun.y = "mean", geom = "point", col = "red", size = 2) +
+  theme(axis.text = element_text(size = 14, face = "bold"), axis.title = element_text(size = 14, face = "bold")) +
+  geom_smooth(method = "lm")
+
+```
+
+Slope = -0.000, not significant
+
+
+### We can look at trends with shorter periods of time to see if there is a more significant trend in shorter time
+#### going to look at 2000-2020
+
+```{r}
+snow_20 <- snow_1950 %>% 
+  filter(year >= 2000,
+         year != 2021) %>% 
+  group_by(year) %>% 
+  summarize(snow_mean=mean(snow))
+
+
+
+ggplot(snow_20, aes(year, snow_mean))+geom_point()
+
+```
+
+
+#Finding regression for 1980-2020 (2000-2020)
+##tmin
+```{r}
+# regression line for min temp, year average
+
+res = lm(snow_mean~year, data=snow_20)
+summary(res)
+confint(res, "year", level = 0.95)
+ggplot(snow_20, aes(x = year, y = snow_mean)) +stat_summary(fun.y = "mean", geom = "point", col = "red", size = 2) +
+  theme(axis.text = element_text(size = 14, face = "bold"), axis.title = element_text(size = 14, face = "bold")) +
+  geom_smooth(method = "lm")
+```
+
+
+Regression line assumes linear relationship, which we do not know, so we need to use Mann-Kendall test
+- Mann- Kendall test is used to determine whether a time series has a monotonic upward or downward trend. it does not require that the data be normally distributed or linear
+H-null = no correlation, no trend (between time & temp / precipitation)
+if S > 0 then later observations in the time series tend to be larger than those that appear earlier in the time series
+if S <- then later observations in the time series tend to be smaller than those that appear earlier in time series
+```{r}
+library(Kendall)
+snow_MK<- MannKendall(snow_year_avg$snow_mean)
+summary(snow_MK)
+
+tmin_table <- broom::tidy(tmin_MK) 
+
+```
+
+
+```{r}
+#time series graph of yearly daily avg of minimum temp (1950-2020)
+ggplot(data = snow_year_avg, aes(x=year, y=snow_mean)) + geom_line()+
+  stat_smooth(method = lm)
+
+```
+
+two-sided t-test
+```{r}
+# splitting the minimum data into two time series - found significant like this
+t.test(subset(snow_year_avg$snow_mean, snow_year_avg$year %in% 1950:1999), subset(snow_year_avg$snow_mean, snow_year_avg$year %in% 2000:2020))
+
+```
+
+
+
+
